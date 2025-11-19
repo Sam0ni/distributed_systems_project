@@ -9,17 +9,18 @@ class PlayerObject:
         self.alive = True
         self.sprite = sprite
 
-    def move(self, x, y, amount):
+    def move(self, x, y):
         if not self.moving:
-            self.x += x*amount
-            self.y += y*amount
+            self.x += x
+            self.y += y
             self.moving = True
 
 
     def update(self, dt):
-        done = self.sprite.update(dt, self.x, self.y)
-        if done:
-            self.moving = False
+        if self.moving:
+            done = self.sprite.update(dt, self.x, self.y)
+            if done:
+                self.moving = False
 
     def render(self, screen):
         self.sprite.render(screen)

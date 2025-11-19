@@ -19,7 +19,13 @@ BOMB_MAP = [[0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],]
 
-CELL_SIZE = 50
+EXPLOSION_MAP = [[0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],]
+
+CELL_SIZE = 100
 
 
 def main():
@@ -32,7 +38,7 @@ def main():
     display = pygame.display.set_mode((display_width, display_height))
 
     pygame.display.set_caption("DisSysBomberman")
-    level = Level(LEVEL_MAP, PLAYER_MAP, BOMB_MAP, CELL_SIZE)
+    level = Level(LEVEL_MAP, PLAYER_MAP, BOMB_MAP, EXPLOSION_MAP, CELL_SIZE)
     game_loop = GameLoop(level, CELL_SIZE, display, 1)
 
 
@@ -63,18 +69,20 @@ class GameLoop:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
-                    self.level.move_player(self._player_id, -1, 0, CELL_SIZE)
+                    self._level.move_player(self._player_id, -1, 0)
                 if event.key == pygame.K_RIGHT:
-                    self.level.move_player(self._player_id, 1, 0, CELL_SIZE)
+                    self._level.move_player(self._player_id, 1, 0)
                 if event.key == pygame.K_UP:
-                    self.level.move_player(self._player_id, 0, -1, CELL_SIZE)
+                    self._level.move_player(self._player_id, 0, -1)
                 if event.key == pygame.K_DOWN:
-                    self.level.move_player(self._player_id, 0, 1, CELL_SIZE)
+                    self._level.move_player(self._player_id, 0, 1)
+                if event.key == pygame.K_SPACE:
+                    self._level.lay_bomb(self._player_id)
             elif event.type == pygame.QUIT:
                 return False
 
     def _render(self):
-        self._level.update(2)
+        self._level.update(5)
         self._level.render(self._display)
         
         pygame.display.update()
