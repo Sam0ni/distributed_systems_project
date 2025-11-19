@@ -73,7 +73,7 @@ class Level:
             explosion.update()
             if self.player_map[explosion.y][explosion.x] != 0:
                 player_id = self.player_map[explosion.y][explosion.x]
-                self.kill_player(player_id)
+                #self.kill_player(player_id)
             if explosion.timer <= 0:
                 removed.append(explosion)
 
@@ -171,3 +171,5 @@ class Level:
         """removes given explosion object"""
         self.explosion_map[explosion.y][explosion.x] = 0
         del self.explosions[(explosion.x, explosion.y)]
+
+    # TODO def kill_player(self, id)
