@@ -1,5 +1,5 @@
 import pygame
-from localLevel import Level
+from client.level import Level
 from services.queue_service import EventQueue
 
 LEVEL_MAP = [[0, 0, 1, 0, 0],
