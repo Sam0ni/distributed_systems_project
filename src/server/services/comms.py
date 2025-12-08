@@ -6,6 +6,7 @@ class ClientComms():
         self.host = host
         self.port = port
         self.server = None
+        self.acks = 0
 
     def start_listening(self):
         """Starts the socket listening - called when becoming Leader"""
@@ -43,6 +44,34 @@ class ClientComms():
                 else:
                     message = json.loads(data)
                     queue.put(message)
+            except Exception as error:
+                print(f"[COMMS] Connection closed or error: {error}", flush=True)
+                break
+        
+        try:
+            client.close()
+        except:
+            pass
+
+    def handle_follower(self, client, queue):
+        """Pushes the events to a queue"""
+        while True:
+            try:
+                data = client.recv(1024).decode("utf-8")
+                if not data:
+                    break
+                if "}{" in data:
+                    parts = data.replace("}{", "}|{").split("|")
+                    for part in parts:
+                        message = json.loads(part)
+                        queue.put(message)
+                else:
+                    message = json.loads(data)
+                    if message["type"] == "ack":
+                        print("ONACK", flush=True)
+                        self.acks += 1
+                    else:
+                        queue.put(message)
             except Exception as error:
                 print(f"[COMMS] Connection closed or error: {error}", flush=True)
                 break

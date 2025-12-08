@@ -47,10 +47,18 @@ class ServerComms():
                 self.sock.settimeout(5)
                 self.sock.connect(target)
                 self.sock.settimeout(None)
+
+                handshake = {
+                    "type": "client_hello"
+                }
+                self.sock.send((json.dumps(handshake)).encode("utf-8"))
                 
                 self.connected = True
                 self.current_server_index = index
                 print(f"[NET] Connected to {target}!", flush=True)
+
+
+
                 return
             except Exception as e:
                 print(f"[NET] Failed to connect to {target}: {e}", flush=True)
