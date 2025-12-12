@@ -6,20 +6,21 @@ from objects.bomb import BombObject
 from objects.explosion import ExplosionObject
 
 class Follower:
-    def __init__(self, leader_addr, server_loop):
+    def __init__(self, server_loop):
         self.leader_queue = Queue()
-        self.leader_addr = leader_addr
         self.server_loop = server_loop
 
-        self.comms = FollowerComms(leader_addr, server_loop.server_id, self.leader_queue)
+        self.comms = None
 
         self.event_queue = EventQueue()
 
         self.last_tick = time.perf_counter()
 
-    def run_follower(self):
+    def run(self):
         """Follower connects to leader and mirrors state"""
+
         try:
+            self.comms = FollowerComms(self.server_loop.leader_addr, self.server_loop.server_id, self.leader_queue)
 
             self.comms.connect_to_leader()
             self.server_loop.last_heartbeat_tick = self.server_loop.global_tick

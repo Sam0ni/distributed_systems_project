@@ -1,8 +1,9 @@
 import time
-import socket
+from queue import Queue
 from objects.player import PlayerObject
 from leader import Leader
 from follower import Follower
+from services.peer_comms import PeerComms
 
 class ServerLoop:
     def __init__(self, server_id, peers_config, level_map, player_map, bomb_map, explosion_map, tick_rate=60):
@@ -30,7 +31,17 @@ class ServerLoop:
         self.global_explosion_id = 1
         self.new_player_id = 1
 
-        self.role_obj = None
+        self.role_obj = Follower(self)
+        self.leader_addr = None
+        self.leader_id = None
+        self.has_leader = False
+        self.peer_queue = Queue()
+        self.peer_comms = PeerComms(self.server_id, self.peers_config, self.peers_config[server_id-1][2], self.peer_queue)
+
+        self.election_in_progress = False
+        self.waiting_for_leader = False
+        self.election_start_time = None
+        self.election_timeout = 0.2
 
         self.initialize_players()
 
@@ -45,43 +56,79 @@ class ServerLoop:
 
     def start(self):
         """Decides role based on ID and availability of peers"""
-        print(f"Server {self.server_id} loop running...", flush=True)
+        print(f"Server {self.server_id} starting...", flush=True)
         
         while True:
-            am_i_leader = True
-            leader_info = None
+            if not self.has_leader:
+                self.run_bully()
+            self.waiting_for_leader = False
+            result = self.role_obj.run()
 
-            print(f"[CONSENSUS] Server {self.server_id} checking peers...", flush=True)
-
-            for peer_id, ip, port in self.peers_config:
-                if peer_id < self.server_id:
-                    if self.check_connection(ip, port):
-                        am_i_leader = False
-                        leader_info = (ip, port)
-                        print(f"[CONSENSUS] Found superior peer {peer_id} at {ip}:{port}", flush=True)
-                        break
+            match result:
+                case "NEED_ELECTION":
+                    self.has_leader = False
+                    continue
+                case "DEMOTION":
+                    self.role_obj = Follower(self)
+                    continue
+                case "LEADER_SWITCH":
+                    continue
             
-            if am_i_leader:
-                print(f"[ROLE] Server {self.server_id} became LEADER", flush=True)
-                self.role_obj = Leader(self)
 
-                self.role_obj.run_leader()
-            else:
-                print(f"[ROLE] Server {self.server_id} became FOLLOWER (Leader is {leader_info})", flush=True)
-                self.role_obj = Follower(leader_info, self)
+    def run_bully(self):
+        print("Starting election", flush=True)
 
-                self.role_obj.run_follower()
+        self.start_election()
+        self.election_in_progress = True
+
+        while True:
+            while not self.peer_queue.empty():
+                msg = self.peer_queue.get()
+                if msg["type"] == "leader_announce":
+                    self.has_leader = True
+                    self.role = Follower(self)
+                    self.leader_id = msg["from"]
+                    self.leader_addr = self.peers_config[msg["from"] - 1]
+                    return
+                elif msg["type"] == "bully_ok":
+                    self.waiting_for_leader = True
+                    pass
+                elif msg["type"] == "bully":
+                    self.handle_bully(msg["from"])
+                
+            if not self.waiting_for_leader and self.election_timeout_expired():
+                self.become_leader()
+                self.has_leader = True
+                return
             
-            print("[FAILOVER] Role change detected, re-evaluating...", flush=True)
-            time.sleep(1)
+            time.sleep(0.001)
 
-    def check_connection(self, ip, port):
-        """Pings a server to see if it is alive"""
-        try:
-            s = socket.create_connection((ip, port), timeout=0.5)
-            s.close()
-            return True
-        except:
+    def start_election(self):
+        msg = {
+            "type": "bully",
+            "from": self.server_id
+        }
+
+        self.peer_comms.broadcast(msg)
+        self.election_start_time = time.perf_counter()
+
+    def handle_bully(self, from_id):
+        msg = {
+            "type": "bully_ok",
+            "from": self.server_id
+        }
+        self.peer_comms.send_to_peer(from_id, msg)
+
+    def become_leader(self):
+        self.role_obj = Leader(self)
+        msg = {
+            "type": "leader_announce",
+            "from": self.server_id
+        }
+        self.peer_comms.broadcast(msg)
+
+    def election_timeout_expired(self):
+        if self.election_start_time is None:
             return False
-
-    
+        now = time.perf_counter()
+        return (now - self.election_start_time) >= self.election_timeout

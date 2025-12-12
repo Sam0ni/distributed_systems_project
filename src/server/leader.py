@@ -25,7 +25,7 @@ class Leader:
         self.outgoing_events = []
         self.last_tick = time.perf_counter()
 
-    def run_leader(self):
+    def run(self):
         self.comms.start_listening()
         
         accept_thread = threading.Thread(target=self.accept_clients, daemon=True)
