@@ -25,6 +25,7 @@ class Leader:
         self.outgoing_events = []
         self.last_tick = time.perf_counter()
         self.comms.start_listening()
+        self.accepting_clients = True
         accept_thread = threading.Thread(target=self.accept_clients, daemon=True)
         accept_thread.start()
 
@@ -40,9 +41,33 @@ class Leader:
 
                 while not self.server_loop.peer_queue.empty():
                     msg = self.server_loop.peer_queue.get()
-                    print(msg, flush=True)
                     if msg["type"] == "leader_announce":
                         if msg["from"] < self.server_loop.server_id:
+                            self.server_loop.has_leader = True
+                            self.server_loop.leader_id = msg["from"]
+                            self.server_loop.leader_addr = (self.server_loop.peers_config[msg["from"] - 1][1], self.server_loop.peers_config[msg["from"] - 1][2])
+                            
+                            self.accepting_clients = False
+
+                            try:
+                                self.comms.server.close()
+                            except:
+                                pass
+                            self.comms.server = None
+
+                            for client_sock in self.client_sockets:
+                                try:
+                                    client_sock.shutdown(socket.SHUT_RDWR)
+                                except:
+                                    pass
+
+                                try:
+                                    client_sock.close()
+                                except:
+                                    pass
+
+                            self.client_sockets.clear()
+                            
                             return "DEMOTION"
                         else:
                             self.server_loop.send_leader_announce()
@@ -50,6 +75,8 @@ class Leader:
                         pass
                     elif msg["type"] == "bully":
                         pass
+                    elif msg["type"] == "state_request":
+                        self.server_loop.send_current_state(msg["from"])
 
                 if self.server_loop.global_tick % 60 == 0:
                     print(f"[LEADER] Global Tick: {self.server_loop.global_tick}", flush=True)
@@ -72,7 +99,7 @@ class Leader:
 
 
     def accept_clients(self):
-        while True:
+        while self.accepting_clients:
             try:
                 sock = self.comms.receive_connection()
                 if not sock:
@@ -137,26 +164,7 @@ class Leader:
             "tick": self.server_loop.global_tick
         }
         raw = json.dumps(msg).encode("utf-8")
-        dropped = []
-        for follower_id, follower_sock in self.follower_sockets.items():
-            try:
-                follower_sock.sendall(raw)
-            except:
-                print("[LEADER] Lost follower during heartbeat!", flush=True)
-                try:
-                    follower_sock.shutdown(socket.SHUT_RDWR)
-                except:
-                    pass
-
-                try:
-                    follower_sock.close()
-                except:
-                    pass
-
-                dropped.append(follower_id)
-        if dropped:
-            for follower_id in dropped:
-                del self.follower_sockets[follower_id]
+        self.broadcast_msg(raw)
 
     def send_clock_sync(self):
         tick = self.server_loop.global_tick
@@ -248,6 +256,7 @@ class Leader:
 
     def leader_spawn_bomb(self, data):
         x, y = data[0], data[1]
+        print(x,y)
         if self.server_loop.bomb_map[y][x] != 0:
             return
         bomb_id = self.server_loop.global_bomb_id
@@ -322,3 +331,25 @@ class Leader:
         player_id = data
         self.server_loop.players[player_id].moving = False
         self.outgoing_events.append({"event_type": 4, "data": [player_id]})
+
+    def broadcast_msg(self, msg):
+        dropped = []
+        for follower_id, follower_sock in self.follower_sockets.items():
+            try:
+                follower_sock.sendall(msg)
+            except:
+                print("[LEADER] Lost follower during broadcast!", flush=True)
+                try:
+                    follower_sock.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
+
+                try:
+                    follower_sock.close()
+                except:
+                    pass
+
+                dropped.append(follower_id)
+        if dropped:
+            for follower_id in dropped:
+                del self.follower_sockets[follower_id]

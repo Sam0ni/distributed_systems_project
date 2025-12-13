@@ -68,7 +68,6 @@ class ClientComms():
                 else:
                     message = json.loads(data)
                     if message["type"] == "ack":
-                        print("ONACK", flush=True)
                         self.acks += 1
                     else:
                         queue.put(message)

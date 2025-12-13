@@ -45,6 +45,8 @@ class Follower:
                     elif msg["type"] == "bully":
                         self.server_loop.peer_queue.put(msg)
                         return "NEED_ELECTION"
+                    elif msg["type"] == "state_request":
+                        self.server_loop.send_current_state(msg["from"])
 
                 if now - self.last_tick >= self.server_loop.tick_interval:
                     self.server_loop.global_tick += 1
@@ -61,7 +63,7 @@ class Follower:
 
         except Exception as e:
             print(f"[FOLLOWER] Connection to Leader lost: {e}", flush=True)
-            self.comms.close_socket()
+            #self.comms.close_socket()
             return "NEED_ELECTION"
         
     def process_follower_messages(self):

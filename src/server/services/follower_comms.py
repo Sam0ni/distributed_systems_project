@@ -56,7 +56,6 @@ class FollowerComms:
 
     def send_to_leader(self, msg):
         self.socket.send(json.dumps(msg).encode())
-        print("SENT", flush=True)
 
     def close_socket(self):
         try:
